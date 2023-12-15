@@ -334,8 +334,8 @@ class Qformerwithr(TrajectoryModel):
         x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
         x_1 = x_1.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
 
-        q_1 = self.predict_q(x[:,2])  # predict next return given state and action
-        q_2 = self.predict_q_1(x_1[:,2])  # predict next return given state and action
+        q_1 = self.predict_q(x[:,1])  # predict next return given state and action
+        q_2 = self.predict_q_1(x_1[:,1])  # predict next return given state and action
         # q_1 = self.predict_q(x)  # predict next return given state and action
         # q_2 = self.predict_q_1(x_1)  # predict next return given state and action
         q_1 = q_1.unsqueeze(2)
@@ -383,16 +383,16 @@ class Pformer(TrajectoryModel):
         self.embed_state = torch.nn.Linear(self.state_dim, hidden_size)
         self.embed_reward = torch.nn.Linear(1, hidden_size)
         self.embed_ln = nn.LayerNorm(hidden_size)
-        # self.mean_linear = nn.Linear(2*hidden_size, act_dim)
-        # self.log_std_linear = nn.Linear(2*hidden_size, act_dim)
-        hid = int(hidden_size/2)
-        self.mean_linear = nn.Sequential(
-            *([nn.Linear(hidden_size, hid)] + ([nn.Linear(hid, act_dim)]))
-        )
-        self.log_std_linear = nn.Sequential(
-            *([nn.Linear(hidden_size, hid)] + ([nn.Linear(hid, act_dim)]))
-        )
-        self.apply(weights_init_)
+        self.mean_linear = nn.Linear(hidden_size, act_dim)
+        self.log_std_linear = nn.Linear(hidden_size, act_dim)
+        # hid = int(hidden_size/2)
+        # self.mean_linear = nn.Sequential(
+        #     *([nn.Linear(hidden_size, hid)] + ([nn.Linear(hid, act_dim)]))
+        # )
+        # self.log_std_linear = nn.Sequential(
+        #     *([nn.Linear(hidden_size, hid)] + ([nn.Linear(hid, act_dim)]))
+        # )
+        # self.apply(weights_init_)
 
 
     def forward(self, states,reward, timesteps, attention_mask=None):
@@ -455,7 +455,7 @@ class Pformer(TrajectoryModel):
         # x = x.reshape(batch_size, seq_length, 2*self.hidden_size)
         x = x.reshape(batch_size, seq_length, 2, self.hidden_size).permute(0, 2, 1, 3)
         # x = x.mean(dim=1) ###################
-        x = x[:,1]
+        x = x[:,0]
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)

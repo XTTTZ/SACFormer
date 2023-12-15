@@ -244,7 +244,7 @@ for i_episode in itertools.count(1):
                 rtg = rtg[:,1:]
             # states = torch.from_numpy(state).reshape(1, env.observation_space.shape[0]).to(device=device, dtype=torch.float32)
             # timesteps = torch.tensor(0, device=device, dtype=torch.long).reshape(1, 1)
-            action = agent.select_action(states,rewards,timesteps)  # Sample action from policy
+            # action = agent.select_action(states,rewards,timesteps)  # Sample action from policy
             action = agent.select_action(states,rtg,timesteps)  # Sample action from policy
             # action = agent.select_action(state,timesteps)
             # action.squeeze()
@@ -346,7 +346,7 @@ for i_episode in itertools.count(1):
         avg_reward /= episodes
 
 
-        writer.add_scalar('avg_reward/test', avg_reward, total_numsteps)
+        writer.add_scalar('avg_reward/test', avg_reward, i_episode)
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))

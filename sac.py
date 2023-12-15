@@ -154,7 +154,7 @@ class SAC(object):
         next_timesteps = torch.LongTensor(next_timesteps).to(self.device)
         next_timesteps = timesteps+1
         next_rtgs = torch.clone(rtgs)
-        next_rtgs = next_rtgs - 0.005
+        next_rtgs = next_rtgs - 0.003
 
         with torch.no_grad():
 
