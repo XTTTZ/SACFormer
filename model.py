@@ -17,6 +17,8 @@ LOG_SIG_MIN = -20
 epsilon = 1e-6
 
 # Initialize Policy weights
+
+
 def weights_init_(m):
     if isinstance(m, nn.Linear):
         torch.nn.init.xavier_uniform_(m.weight, gain=1)
@@ -58,7 +60,7 @@ class Qformer(nn.Module):
 
     def forward(self, state, action):
         xu = torch.cat([state, action], 2)
-        
+
         x1 = F.relu(self.linear1(xu))
         x1 = F.relu(self.linear2(x1))
         x1 = self.linear3(x1)
@@ -68,7 +70,7 @@ class Qformer(nn.Module):
         x2 = self.linear6(x2)
 
         return x1, x2
-    
+
 # class Qformer(TrajectoryModel):
 
 #     """
@@ -206,7 +208,6 @@ class Qformer(nn.Module):
 #         # x_1 = x_1.reshape(batch_size, seq_length, 3*self.hidden_size)
 
 
-
 #         q_1 = self.predict_q(x[:,2])  # predict next return given state and action
 #         q_2 = self.predict_q_1(x_1[:,2])  # predict next return given state and action
 #         # q_1 = self.predict_q(x)  # predict next return given state and action
@@ -216,7 +217,7 @@ class Qformer(nn.Module):
 #         # print(q_1)
 
 #         return q_1, q_2
-    
+
 
 class Qformerwithr(TrajectoryModel):
 
@@ -269,7 +270,8 @@ class Qformerwithr(TrajectoryModel):
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long)
             attention_mask = attention_mask.to(states.device)
 
         # embed each modality with a different head
@@ -331,18 +333,22 @@ class Qformerwithr(TrajectoryModel):
         # print(x.shape)
         # x = x.reshape(batch_size, seq_length, 3*self.hidden_size)
         # x_1 = x_1.reshape(batch_size, seq_length, 3*self.hidden_size)
-        x = x.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
-        x_1 = x_1.reshape(batch_size, seq_length, 3, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 3,
+                      self.hidden_size).permute(0, 2, 1, 3)
+        x_1 = x_1.reshape(batch_size, seq_length, 3,
+                          self.hidden_size).permute(0, 2, 1, 3)
 
-        q_1 = self.predict_q(x[:,1])  # predict next return given state and action
-        q_2 = self.predict_q_1(x_1[:,1])  # predict next return given state and action
+        # predict next return given state and action
+        q_1 = self.predict_q(x[:, 1])
+        # predict next return given state and action
+        q_2 = self.predict_q_1(x_1[:, 1])
         # q_1 = self.predict_q(x)  # predict next return given state and action
         # q_2 = self.predict_q_1(x_1)  # predict next return given state and action
         q_1 = q_1.unsqueeze(2)
         q_2 = q_2.unsqueeze(2)
 
         return q_1, q_2
-    
+
 
 class Pformer(TrajectoryModel):
 
@@ -394,32 +400,26 @@ class Pformer(TrajectoryModel):
         # )
         # self.apply(weights_init_)
 
-
-    def forward(self, states,reward, timesteps, attention_mask=None):
+    def forward(self, states, reward, timesteps, attention_mask=None):
 
         batch_size, seq_length = states.shape[0], states.shape[1]
         reward = reward.reshape(batch_size, seq_length, 1)
-
-
 
         if seq_length == 1:
             timesteps = timesteps.reshape(batch_size, seq_length)
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long)
             attention_mask = attention_mask.to(states.device)
 
         # embed each modality with a different head
         state_embeddings = self.embed_state(states)
         time_embeddings = self.embed_timestep(timesteps)
 
-
-
         reward_embeddings = self.embed_reward(reward)
         reward_embeddings = reward_embeddings + time_embeddings
-
-
 
         # time embeddings are treated similar to positional embeddings
         state_embeddings = state_embeddings + time_embeddings
@@ -435,7 +435,6 @@ class Pformer(TrajectoryModel):
             (attention_mask, attention_mask), dim=1
         ).permute(0, 2, 1).reshape(batch_size, 2*seq_length)
 
-
         # we feed in the input embeddings (not word indices as in NLP) to the model
         # transformer_outputs = self.transformer(
         #     inputs_embeds=state_embeddings,
@@ -448,22 +447,23 @@ class Pformer(TrajectoryModel):
         )
         x = transformer_outputs['last_hidden_state']
         # x = transformer_outputs.hidden_states[2]
-        
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         # x = x.reshape(batch_size, seq_length, 2*self.hidden_size)
-        x = x.reshape(batch_size, seq_length, 2, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 2,
+                      self.hidden_size).permute(0, 2, 1, 3)
         # x = x.mean(dim=1) ###################
-        x = x[:,0]
+        x = x[:, 0]
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
 
         return mean, log_std
-    def sample(self, state,reward,timesteps):
+
+    def sample(self, state, reward, timesteps):
         # print(state.shape)
-        mean, log_std = self.forward(state,reward,timesteps)
+        mean, log_std = self.forward(state, reward, timesteps)
         std = log_std.exp()
         normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -482,7 +482,7 @@ class Pformer(TrajectoryModel):
         self.action_scale = self.action_scale.to(device)
         self.action_bias = self.action_bias.to(device)
         return super(Pformer, self).to(device)
-    
+
 
 # class Pformer(TrajectoryModel):
 
@@ -534,7 +534,6 @@ class Pformer(TrajectoryModel):
 #         reward = reward.reshape(batch_size, seq_length, 1)
 
 
-
 #         if seq_length == 1:
 #             timesteps = timesteps.reshape(batch_size, seq_length)
 
@@ -548,10 +547,8 @@ class Pformer(TrajectoryModel):
 #         time_embeddings = self.embed_timestep(timesteps)
 
 
-
 #         reward_embeddings = self.embed_reward(reward)
 #         reward_embeddings = reward_embeddings + time_embeddings
-
 
 
 #         # time embeddings are treated similar to positional embeddings
@@ -581,7 +578,7 @@ class Pformer(TrajectoryModel):
 #         )
 #         # x = transformer_outputs['last_hidden_state']
 #         x = transformer_outputs.hidden_states[2]
-        
+
 
 #         # reshape x so that the second dimension corresponds to the original
 #         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
@@ -615,7 +612,7 @@ class Pformer(TrajectoryModel):
 #         self.action_scale = self.action_scale.to(device)
 #         self.action_bias = self.action_bias.to(device)
 #         return super(Pformer, self).to(device)
-    
+
 class PformerD(TrajectoryModel):
 
     """
@@ -660,26 +657,23 @@ class PformerD(TrajectoryModel):
         self.log_std_linear = nn.Linear(hidden_size, act_dim)
         self.apply(weights_init_)
 
-
-    def forward(self, states,reward, timesteps, attention_mask=None):
+    def forward(self, states, reward, timesteps, attention_mask=None):
 
         batch_size, seq_length = states.shape[0], states.shape[1]
         reward = reward.reshape(batch_size, seq_length, 1)
 
         if attention_mask is None:
             # attention mask for GPT: 1 if can be attended to, 0 if not
-            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+            attention_mask = torch.ones(
+                (batch_size, seq_length), dtype=torch.long)
             attention_mask = attention_mask.to(states.device)
 
         # embed each modality with a different head
         state_embeddings = self.embed_state(states)
         time_embeddings = self.embed_timestep(timesteps)
 
-
         reward_embeddings = self.embed_reward(reward)
         reward_embeddings = reward_embeddings + time_embeddings
-
-
 
         # time embeddings are treated similar to positional embeddings
         state_embeddings = state_embeddings + time_embeddings
@@ -693,7 +687,6 @@ class PformerD(TrajectoryModel):
             (attention_mask, attention_mask), dim=1
         ).permute(0, 2, 1).reshape(batch_size, 2*seq_length)
 
-
         # we feed in the input embeddings (not word indices as in NLP) to the model
         # transformer_outputs = self.transformer(
         #     inputs_embeds=state_embeddings,
@@ -706,20 +699,21 @@ class PformerD(TrajectoryModel):
         )
         x = transformer_outputs['last_hidden_state']
         # x = transformer_outputs.hidden_states[2]
-        
 
         # reshape x so that the second dimension corresponds to the original
         # returns (0), states (1), or actions (2); i.e. x[:,1,t] is the token for s_t
         # x = x.reshape(batch_size, seq_length, self.hidden_size)
-        x = x.reshape(batch_size, seq_length, 2, self.hidden_size).permute(0, 2, 1, 3)
+        x = x.reshape(batch_size, seq_length, 2,
+                      self.hidden_size).permute(0, 2, 1, 3)
         # x = x.mean(dim=1) ###################
-        x = x[:,1]
+        x = x[:, 1]
         mean = self.mean_linear(x)
         mean = torch.tanh(mean) * self.action_scale + self.action_bias
 
         return mean
-    def sample(self, state,reward,timesteps):
-        mean = self.forward(state,reward,timesteps)
+
+    def sample(self, state, reward, timesteps):
+        mean = self.forward(state, reward, timesteps)
         noise = self.noise.normal_(0., std=0.1)
         noise = noise.clamp(-0.25, 0.25)
         action = mean + noise
@@ -735,7 +729,7 @@ class PformerD(TrajectoryModel):
 # class Pformer(nn.Module):
 #     def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
 #         super(Pformer, self).__init__()
-        
+
 #         self.linear1 = nn.Linear(num_inputs, hidden_dim)
 #         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
 
@@ -755,7 +749,7 @@ class PformerD(TrajectoryModel):
 #             self.action_bias = torch.FloatTensor(
 #                 (action_space.high + action_space.low) / 2.)
 #         self.action_scale = self.action_scale.to("cuda")
-#         self.action_bias = self.action_bias.to("cuda")  
+#         self.action_bias = self.action_bias.to("cuda")
 
 
 #     def forward(self, state):
