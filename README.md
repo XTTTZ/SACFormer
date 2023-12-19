@@ -3,7 +3,7 @@ This is a Pytorch implementation of SACFormer.
 
 ## Environment Setup
 
-We mainly utilized [Mojuco](https://github.com/openai/mujoco-py) for experiments.
+We mainly utilized [Mujoco](https://github.com/openai/mujoco-py) for experiments.
 
 ```
 git clone https://github.com/XTTTZ/SACFormer.git
