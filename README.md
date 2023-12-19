@@ -15,7 +15,7 @@ conda env create -f environment.yaml
 ```
 python main.py --env-name Hopper-v2 --alpha 0.2 --goal 4 --cuda --K 6
 ```
-| Environment **(`--env-name`)**| Temperature **(`--alpha`)**| K | 
+| Environment **(`--env-name`)**| Temperature **(`--alpha`)**| Sequence length **(--K)** | 
 | ---------------| -------------| -------------|
 | HalfCheetah-v2| 0.2| 6|
 | Hopper-v2| 0.2| 6|
