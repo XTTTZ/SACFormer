@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from utils import soft_update, hard_update
 # from model import GaussianPolicy, QNetwork, DeterministicPolicy
-from model import Qformer, Pformer,Qformerwithr,PformerD
+from model import Qformer, Pformer,PformerD
 import numpy as np
 
 
@@ -22,47 +22,7 @@ class SAC(object):
 
         self.device = torch.device("cuda" if args.cuda else "cpu")
         self.critic = Qformer(num_inputs, action_space.shape[0], args.hidden_size).to(self.device)
-        # self.critic = Qformer(
-        #     state_dim=num_inputs,
-        #     act_dim=action_space.shape[0],
-        #     max_length=args.K,
-        #     max_ep_len=args.max_ep_len,
-        #     hidden_size=args.embed_dim,
-        #     n_layer=args.n_layer,
-        #     n_head=args.n_head,
-        #     n_inner=4*args.embed_dim,
-        #     activation_function=args.activation_function,
-        #     n_positions=1024,
-        #     resid_pdrop=args.dropout,
-        #     attn_pdrop=args.dropout,
-        # ).to(self.device)
         self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
-
-        # self.critic_optim = torch.optim.AdamW(
-        # self.critic.parameters(),
-        # lr=args.lr,
-        # weight_decay=args.weight_decay,
-        # )
-        # self.critic_scheduler = torch.optim.lr_scheduler.LambdaLR(
-        # self.critic_optim,
-        # lambda steps: min((steps+1)/args.warmup_steps, 1)
-        # )
-
-        # self.critic_target = Qformer(
-        #     state_dim=num_inputs,
-        #     act_dim=action_space.shape[0],
-        #     max_length=args.K,
-        #     max_ep_len=args.max_ep_len,
-        #     hidden_size=args.embed_dim,
-        #     n_layer=args.n_layer,
-        #     n_head=args.n_head,
-        #     n_inner=4*args.embed_dim,
-        #     activation_function=args.activation_function,
-        #     n_positions=1024,
-        #     resid_pdrop=args.dropout,
-        #     attn_pdrop=args.dropout,
-        #     action_space=action_space,
-        # ).to(self.device)
         self.critic_target = Qformer(num_inputs, action_space.shape[0], args.hidden_size).to(self.device)
         hard_update(self.critic_target, self.critic)
 
@@ -139,7 +99,7 @@ class SAC(object):
         reward_batch = torch.FloatTensor(reward_batch).to(self.device)
         mask_batch = torch.FloatTensor(mask_batch).to(self.device).squeeze()
         rtgs = torch.FloatTensor(rtgs).to(self.device)
-        rtgs = rtgs/1000
+        rtgs = rtgs/500
 
         # print("state_batch shape", state_batch.shape)
         # print("timesteps shape", timesteps.shape)
@@ -154,7 +114,9 @@ class SAC(object):
         next_timesteps = torch.LongTensor(next_timesteps).to(self.device)
         next_timesteps = timesteps+1
         next_rtgs = torch.clone(rtgs)
-        next_rtgs = next_rtgs - 0.003
+        next_rtgs = next_rtgs - 0.002
+
+        next_reward = torch.clone(reward_batch)
 
         with torch.no_grad():
 
@@ -166,22 +128,17 @@ class SAC(object):
             # qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action,next_timesteps)
             qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_state_action)
             # qf1_next_target, qf2_next_target = self.critic_target(next_state_batch, next_rtgs, next_state_action, next_timesteps)
-            # print("qf1_next_target shape", qf1_next_target.shape)
-            # print("qf2_next_target shape", qf2_next_target.shape)
+
 
             qf1_next_target = qf1_next_target.squeeze()
             qf2_next_target = qf2_next_target.squeeze()
             next_state_log_pi = next_state_log_pi.squeeze()
-            # print("qf1_next_target shape", qf1_next_target.shape)
-            # print("qf2_next_target shape", qf2_next_target.shape)
-            # print("next_state_log_pi shape", next_state_log_pi.shape)
+
             min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
             next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
-            # next_q_value = reward_last + mask_last * self.gamma * (min_qf_next_target)
-            # print("next_q_value shape", reward_last.shape,mask_last.shape,next_state_log_pi.shape) 
-        # qf1, qf2 = self.critic(state_batch, action_batch,timesteps)  # Two Q-functions to mitigate positive bias in the policy improvement step
-        qf1, qf2 = self.critic(state_batch, action_batch)
-        # qf1, qf2 = self.critic(state_batch, rtgs, action_batch, timesteps)
+
+        qf1, qf2 = self.critic(state_batch, action_batch)  # Two Q-functions to mitigate positive bias in the policy improvement step
+
         qf1 = qf1.squeeze()
         qf2 = qf2.squeeze()
         qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
@@ -194,15 +151,14 @@ class SAC(object):
         self.critic_optim.step()
 
         pi, log_pi, _ = self.policy.sample(state_batch,rtgs,timesteps)
+        # pi, log_pi, _ = self.policy.sample(state_batch,reward_batch,timesteps)
         # pi, log_pi, _ = self.policy.sample(state_batch)
 
         # state_last = state_batch[:,-1,:].squeeze()
 
         # pi = torch.cat((action_batch[:,1:,:],pi.unsqueeze(1)),dim=1)
 
-        # qf1_pi, qf2_pi = self.critic(state_batch, pi,timesteps)
         qf1_pi, qf2_pi = self.critic(state_batch, pi)
-        # qf1_pi, qf2_pi = self.critic(state_batch, rtgs, pi, timesteps)
         qf1_pi = qf1_pi.squeeze()
         qf2_pi = qf2_pi.squeeze()
         min_qf_pi = torch.min(qf1_pi, qf2_pi)
@@ -211,10 +167,7 @@ class SAC(object):
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.policy.parameters(), .25) #############
         self.policy_optim.step()
-        # self.policy_scheduler.step()
-        # self.critic_scheduler.step()
 
         if self.automatic_entropy_tuning:
             alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
